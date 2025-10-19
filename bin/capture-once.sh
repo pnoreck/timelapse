@@ -3,32 +3,45 @@ set -euo pipefail
 
 # === Konfiguration ===
 BASE="/home/sha/timelapse"
-OUTDIR="${BASE}/images/$(date +%F)"     # Tagesordner: YYYY-MM-DD
+OUTDIR="${BASE}/images/$(date +%F)"
 mkdir -p "${OUTDIR}"
 
-# Aufnahme-Intervall wird durch den systemd-Timer gesteuert
-# Kameraeinstellungen:
-WIDTH=4056       # HQ-Cam max: 4056x3040 (12MP)
+WIDTH=4056
 HEIGHT=3040
-QUALITY=95       # JPEG-Qualität 1..100
-EXTRA_OPTS="--awbgains 1.5,1.6"  # Beispiel: manuelles AWB-Tuning; kann leer sein
+QUALITY=95
+EXTRA_OPTS=""   # z. B. --awbgains 1.5,1.6 oder leer lassen
 
-# === Aufnahme-Command finden (rpicam-still bevorzugt, sonst libcamera-still) ===
-CMD=""
-if command -v rpicam-still >/dev/null 2>&1; then
-  CMD="rpicam-still -n --width ${WIDTH} --height ${HEIGHT} --quality ${QUALITY} --timeout 1 ${EXTRA_OPTS}"
-elif command -v libcamera-still >/dev/null 2>&1; then
-  CMD="libcamera-still -n --width ${WIDTH} --height ${HEIGHT} --quality ${QUALITY} --timeout 1"
+# Ziel für "aktuelles Bild"
+WEBCAM_FILE="/var/www/html/webcam.jpg"
+
+# --- Pfad für Log ---
+LOG="${BASE}/logs/capture.log"
+ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
+
+# === Kamera-Command ermitteln ===
+RPICAM_STILL="$(command -v rpicam-still || true)"
+LIBCAM_STILL="$(command -v libcamera-still || true)"
+
+if [[ -n "${RPICAM_STILL}" ]]; then
+  CMD=("${RPICAM_STILL}" -n --width "${WIDTH}" --height "${HEIGHT}" --quality "${QUALITY}" --timeout 1000 ${EXTRA_OPTS})
+elif [[ -n "${LIBCAM_STILL}" ]]; then
+  CMD=("${LIBCAM_STILL}" -n --width "${WIDTH}" --height "${HEIGHT}" --quality "${QUALITY}" --timeout 1000)
 else
-  echo "Keine rpicam-still oder libcamera-still gefunden." >&2
+  echo "[$(ts)] Keine rpicam-still oder libcamera-still gefunden (PATH=${PATH})." | tee -a "${LOG}" >&2
   exit 1
 fi
 
-# === Aufnahme ===
-STAMP="$(date +%Y-%m-%d_%H-%M-%S)"
+STAMP="$(date '+%Y-%m-%d_%H-%M-%S')"
 OUTFILE="${OUTDIR}/${STAMP}.jpg"
 
-# rpicam/libcamera brauchen -o
-${CMD} -o "${OUTFILE}"
+# === Aufnahme ===
+"${CMD[@]}" -o "${OUTFILE}"
+echo "[$(ts)] Bild aufgenommen: ${OUTFILE}" >> "${LOG}"
 
-echo "$(date '+%F %T') -> ${OUTFILE}" >> "${BASE}/logs/capture.log"
+# === Kopie für aktuelle Vorschau ===
+if cp -f "${OUTFILE}" "${WEBCAM_FILE}" 2>/dev/null; then
+  echo "[$(ts)] webcam.jpg aktualisiert -> ${WEBCAM_FILE}" >> "${LOG}"
+else
+  echo "[$(ts)] WARNUNG: Konnte ${WEBCAM_FILE} nicht schreiben." >> "${LOG}"
+fi
+

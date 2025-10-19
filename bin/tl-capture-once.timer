@@ -1,12 +1,15 @@
 [Unit]
-Description=Timelapse: capture every X minutes
+Description=Timelapse: capture every X minutes (wall-clock aligned)
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
+# Feuert exakt zu :00, :05, :10, ...
+OnCalendar=*:0/5
+# Wichtig: hohe Genauigkeit, sonst kann systemd um bis zu 1 Minute "bündeln"
+AccuracySec=1s
 Unit=tl-capture-once.service
 Persistent=true
 
 [Install]
 WantedBy=timers.target
+
 

@@ -1,8 +1,9 @@
 [Unit]
-Description=Timelapse: daily at 23:58
+Description=Timelapse: daily at 03:00 (process yesterday)
 
 [Timer]
-OnCalendar=*-*-* 23:58:00
+OnCalendar=*-*-* 03:00:00
+AccuracySec=1s
 Unit=tl-daily-process.service
 Persistent=true
 

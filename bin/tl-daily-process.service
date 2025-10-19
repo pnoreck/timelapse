@@ -1,9 +1,13 @@
 [Unit]
-Description=Timelapse: daily video build & hour filtering
+Description=Timelapse: daily postprocess (build day video, keep HH:00 frames)
 
 [Service]
 Type=oneshot
+User=sha
+Group=sha
+WorkingDirectory=/home/sha/timelapse
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
 ExecStart=/home/sha/timelapse/bin/daily-process.sh
-User=pi
-Group=pi
+StandardOutput=append:/home/sha/timelapse/logs/daily.service.log
+StandardError=append:/home/sha/timelapse/logs/daily.service.err.log
 

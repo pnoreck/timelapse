@@ -7,28 +7,33 @@ IMG_BASE="${BASE}/images"
 VID_BASE="${BASE}/videos"
 LOG="${BASE}/logs/daily.log"
 
-# Welche Stunden extrahieren?
+# Welche Vollstunden sammeln?
 HOURS=("09" "12" "17")
 
-# Video-Settings
+# Video-Settings (Tagesvideo)
 FPS=24
-CRF=20           # Qualität (x264): kleiner = besser/größer
+CRF=20
 PRESET="veryfast"
-SCALE="1920:-2"  # 1080p-ähnlich, Seitenverhältnis wird behalten
+SCALE="1920:-2"  # Seitenverhältnis bleibt erhalten
 
-# Verarbeitet wird standardmäßig der heutige Tag.
-# Falls du nachts vor Mitternacht laufen lässt und "gestern" willst:
-# DATE=$(date -d 'yesterday' +%F)
-DATE="${1:-$(date +%F)}"
-
+# Datum:
+# Wir planen den Timer auf 03:00 am Folgetag. Dann ist "gestern" der komplette Aufnahmetag.
+DATE="${1:-$(date -d 'yesterday' +%F)}"
 DAY_DIR="${IMG_BASE}/${DATE}"
-[ -d "${DAY_DIR}" ] || { echo "Kein Bildordner für ${DATE}" | tee -a "${LOG}"; exit 0; }
 
-echo "$(date --isoseconds) Starte Tagesverarbeitung für ${DATE}" | tee -a "${LOG}"
+mkdir -p "${VID_BASE}" "${BASE}/logs"
+shopt -s nullglob
 
-mkdir -p "${VID_BASE}"
+ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 
-# 1) Tagesvideo aus ALLEN Bildern
+if [[ ! -d "${DAY_DIR}" ]]; then
+  echo "[$(ts)] Kein Bildordner für ${DATE} (${DAY_DIR})" | tee -a "${LOG}"
+  exit 0
+fi
+
+echo "[$(ts)] Starte Tagesverarbeitung für ${DATE}" | tee -a "${LOG}"
+
+# 1) Tagesvideo aus ALLEN Bildern (bevor irgendwas verschoben/gelöscht wird)
 if compgen -G "${DAY_DIR}/*.jpg" > /dev/null; then
   OUT_ALL="${VID_BASE}/${DATE}_ALL.mp4"
   ffmpeg -hide_banner -y -framerate ${FPS} -pattern_type glob -i "${DAY_DIR}/*.jpg" \
@@ -36,39 +41,31 @@ if compgen -G "${DAY_DIR}/*.jpg" > /dev/null; then
          -c:v libx264 -preset ${PRESET} -crf ${CRF} \
          "${OUT_ALL}" \
          >> "${LOG}" 2>&1
-  echo "Tagesvideo erstellt: ${OUT_ALL}" | tee -a "${LOG}"
+  echo "[$(ts)] Tagesvideo erstellt: ${OUT_ALL}" | tee -a "${LOG}"
 else
-  echo "Keine Bilder für ${DATE} gefunden." | tee -a "${LOG}"
+  echo "[$(ts)] Keine Bilder für ${DATE} gefunden." | tee -a "${LOG}"
 fi
 
-# 2) Bilder nach Stunde einsortieren & je ein Stunden-Video
+# 2) Pro gewünschter Stunde GENAU das Bild von HH:00 in zentrale Ordner verschieben
 for HH in "${HOURS[@]}"; do
-  HOUR_DIR="${DAY_DIR}/hour-${HH}"
-  mkdir -p "${HOUR_DIR}"
-  # Dateien der Stunde verschieben (behalten)
-  # Muster passt auf ..._HH-...
-  shopt -s nullglob
-  files=( "${DAY_DIR}/"*_"${HH}"-*".jpg" )
-  if (( ${#files[@]} > 0 )); then
-    mv "${files[@]}" "${HOUR_DIR}/"
-    OUT_HOUR="${VID_BASE}/${DATE}_H${HH}.mp4"
-    if compgen -G "${HOUR_DIR}/*.jpg" > /dev/null; then
-      ffmpeg -hide_banner -y -framerate ${FPS} -pattern_type glob -i "${HOUR_DIR}/*.jpg" \
-             -vf "scale=${SCALE},format=yuv420p" \
-             -c:v libx264 -preset ${PRESET} -crf ${CRF} \
-             "${OUT_HOUR}" \
-             >> "${LOG}" 2>&1
-      echo "Stunden-Video erstellt: ${OUT_HOUR}" | tee -a "${LOG}"
-    fi
-  else
-    echo "Keine Bilder für Stunde ${HH} am ${DATE}." | tee -a "${LOG}"
+  CENTRAL_DIR="${IMG_BASE}/hour-${HH}"
+  mkdir -p "${CENTRAL_DIR}"
+
+  # Exakt HH:00 – dank Dateinamen: YYYY-MM-DD_HH-MM-SS.jpg
+  matches=( "${DAY_DIR}/${DATE}_${HH}-00-"*.jpg )
+  if (( ${#matches[@]} == 0 )); then
+    echo "[$(ts)] Kein exaktes ${HH}:00-Bild am ${DATE} gefunden." | tee -a "${LOG}"
+    continue
   fi
+
+  # Falls wider Erwarten mehrere existieren, nimm das erste (alphabetisch = chronologisch)
+  pick="${matches[0]}"
+  mv -v -- "${pick}" "${CENTRAL_DIR}/" | tee -a "${LOG}"
 done
 
-# 3) Restliche Bilder (die NICHT in den Stundenordnern sind) löschen
-#    Dadurch bleiben nur die gewünschten Stundenbilder für Archivierung bestehen.
+# 3) Restliche Bilder des Tages löschen (nur top-level Dateien im Tagesordner)
 find "${DAY_DIR}" -maxdepth 1 -type f -name "*.jpg" -print -delete | tee -a "${LOG}"
 
-echo "$(date --isoseconds) Fertig für ${DATE}" | tee -a "${LOG}"
+echo "[$(ts)] Fertig für ${DATE}" | tee -a "${LOG}"
 
 
