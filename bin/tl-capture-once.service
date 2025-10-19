@@ -1,0 +1,10 @@
+[Unit]
+Description=Timelapse: one capture
+
+[Service]
+Type=oneshot
+ExecStart=/home/sha/timelapse/bin/capture-once.sh
+User=pi
+Group=pi
+
+

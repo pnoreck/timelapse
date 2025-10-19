@@ -1,0 +1,9 @@
+[Unit]
+Description=Timelapse: daily video build & hour filtering
+
+[Service]
+Type=oneshot
+ExecStart=/home/sha/timelapse/bin/daily-process.sh
+User=pi
+Group=pi
+

@@ -1,0 +1,12 @@
+[Unit]
+Description=Timelapse: daily at 23:58
+
+[Timer]
+OnCalendar=*-*-* 23:58:00
+Unit=tl-daily-process.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+

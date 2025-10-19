@@ -1,0 +1,12 @@
+[Unit]
+Description=Timelapse: capture every X minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=tl-capture-once.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
