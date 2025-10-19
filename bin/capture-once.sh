@@ -31,5 +31,4 @@ OUTFILE="${OUTDIR}/${STAMP}.jpg"
 # rpicam/libcamera brauchen -o
 ${CMD} -o "${OUTFILE}"
 
-echo "$(date --isoseconds) -> ${OUTFILE}" >> "${BASE}/logs/capture.log"
-
+echo "$(date '+%F %T') -> ${OUTFILE}" >> "${BASE}/logs/capture.log"
